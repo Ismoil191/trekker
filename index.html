@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+<title>Xarajatlar Trekeri</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
+
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --panel-2: #1c2128;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-dim: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --red: #f85149;
+    --purple: #a371f7;
+    --orange: #f0883e;
+    --yellow: #e3b341;
+    --pink: #db61a2;
+    --cyan: #39c5cf;
+    --radius: 16px;
+    --gap: 16px;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: clamp(10px, 3vw, 30px);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  /* ===== Fon animatsiyasi (suzuvchi doiralar) ===== */
+  body::before, body::after {
+    content: '';
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: 0.15;
+    z-index: 0;
+    pointer-events: none;
+  }
+  body::before {
+    width: 400px; height: 400px;
+    background: var(--accent);
+    top: -100px; left: -100px;
+    animation: float1 18s ease-in-out infinite;
+  }
+  body::after {
+    width: 500px; height: 500px;
+    background: var(--purple);
+    bottom: -150px; right: -150px;
+    animation: float2 22s ease-in-out infinite;
+  }
+  @keyframes float1 {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(80px, 60px) scale(1.2); }
+  }
+  @keyframes float2 {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(-100px, -80px) scale(1.1); }
+  }
+
+  .container {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    padding: clamp(16px, 3vw, 32px);
+    max-width: 1100px;
+    width: 100%;
+    box-shadow: 0 25px 70px rgba(0,0,0,0.6);
+    position: relative;
+    z-index: 1;
+    animation: containerIn 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes containerIn {
+    from { opacity: 0; transform: translateY(30px) scale(0.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  /* ===== Sarlavha ===== */
+  h1 {
+    text-align: center;
+    font-size: clamp(20px, 4vw, 30px);
+    margin-bottom: 6px;
+    background: linear-gradient(90deg, var(--accent), var(--purple), var(--pink), var(--accent));
+    background-size: 300% 100%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: gradientShift 6s ease infinite;
+  }
+  @keyframes gradientShift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+  .subtitle {
+    text-align: center;
+    color: var(--text-dim);
+    font-size: clamp(11px, 1.6vw, 13px);
+    margin-bottom: clamp(16px, 3vw, 24px);
+    animation: fadeUp 0.7s 0.2s both;
+  }
+
+  /* ===== Stats kartalari ===== */
+  .summary {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--gap);
+    margin-bottom: var(--gap);
+  }
+  .card {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: clamp(12px, 2.5vw, 20px);
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s;
+    animation: fadeUp 0.7s both;
+  }
+  .card:nth-child(1) { animation-delay: 0.1s; }
+  .card:nth-child(2) { animation-delay: 0.2s; }
+  .card:nth-child(3) { animation-delay: 0.3s; }
+  .card:hover { transform: translateY(-5px); box-shadow: 0 12px 30px rgba(0,0,0,0.4); }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: var(--accent);
+    transform: scaleX(0);
+    transform-origin: left;
+    animation: barGrow 1s 0.4s forwards;
+  }
+  .card.income::before { background: var(--green); }
+  .card.expense::before { background: var(--red); }
+  .card.balance::before { background: var(--purple); }
+  @keyframes barGrow { to { transform: scaleX(1); } }
+
+  .card .label {
+    font-size: clamp(10px, 1.6vw, 12px);
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+  }
+  .card .amount {
+    font-size: clamp(15px, 2.8vw, 21px);
+    font-weight: 700;
+    transition: color 0.3s;
+  }
+  .card.income .amount { color: var(--green); }
+  .card.expense .amount { color: var(--red); }
+  .card.balance .amount { color: var(--purple); }
+
+  /* ===== Form ===== */
+  .form-section {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: clamp(12px, 2.5vw, 18px);
+    margin-bottom: var(--gap);
+    animation: fadeUp 0.7s 0.35s both;
+  }
+  .form-title {
+    font-size: clamp(11px, 1.6vw, 13px);
+    color: var(--text-dim);
+    margin-bottom: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .form {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr 1fr 1.2fr auto;
+    gap: 10px;
+  }
+  .form input, .form select, .form button {
+    padding: clamp(9px, 1.6vw, 12px) clamp(10px, 1.8vw, 14px);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    font-size: clamp(12px, 1.6vw, 14px);
+    outline: none;
+    transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    width: 100%;
+    min-width: 0;
+  }
+  .form input:focus, .form select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(88,166,255,0.15);
+    transform: translateY(-2px);
+  }
+  .form select option { background: var(--panel); }
+  .form button {
+    background: linear-gradient(135deg, var(--accent), var(--purple));
+    background-size: 200% 200%;
+    color: #0d1117;
+    border: none;
+    cursor: pointer;
+    font-weight: 700;
+    white-space: nowrap;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+  .form button:hover {
+    background-position: 100% 50%;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(88,166,255,0.35);
+  }
+  .form button:active { transform: translateY(0) scale(0.98); }
+  .form button::after {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 0; height: 0;
+    background: rgba(255,255,255,0.5);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    transition: width 0.5s, height 0.5s, opacity 0.5s;
+    opacity: 0;
+  }
+  .form button:active::after {
+    width: 300px; height: 300px; opacity: 1;
+    transition: 0s;
+  }
+
+  /* ===== Diagrammalar ===== */
+  .charts {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--gap);
+    margin-bottom: var(--gap);
+  }
+  .chart-box {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: clamp(12px, 2.5vw, 18px);
+    transition: transform 0.3s, box-shadow 0.3s;
+    animation: fadeUp 0.7s both;
+  }
+  .chart-box:nth-child(1) { animation-delay: 0.45s; }
+  .chart-box:nth-child(2) { animation-delay: 0.55s; }
+  .chart-box:hover { transform: translateY(-3px); box-shadow: 0 12px 30px rgba(0,0,0,0.3); }
+  .chart-box h3 {
+    font-size: clamp(11px, 1.6vw, 13px);
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 12px;
+    font-weight: 600;
+  }
+  .chart-container {
+    position: relative;
+    height: clamp(200px, 32vw, 260px);
+  }
+
+  /* ===== Filtrlar ===== */
+  .filters {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+    animation: fadeUp 0.7s 0.65s both;
+  }
+  .filters button {
+    padding: clamp(6px, 1.2vw, 8px) clamp(12px, 2vw, 16px);
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: clamp(11px, 1.5vw, 12px);
+    font-weight: 600;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .filters button:hover {
+    color: var(--text);
+    border-color: var(--accent);
+    transform: translateY(-2px);
+  }
+  .filters button.active {
+    background: linear-gradient(135deg, var(--accent), var(--purple));
+    color: #0d1117;
+    border-color: transparent;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(88,166,255,0.3);
+  }
+
+  /* ===== Ro'yxat ===== */
+  .list {
+    max-height: clamp(300px, 50vh, 500px);
+    overflow-y: auto;
+    padding-right: 5px;
+    animation: fadeUp 0.7s 0.75s both;
+    scroll-behavior: smooth;
+  }
+  .list::-webkit-scrollbar { width: 6px; }
+  .list::-webkit-scrollbar-track { background: var(--bg); border-radius: 3px; }
+  .list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; transition: 0.3s; }
+  .list::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+  .item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: clamp(10px, 1.8vw, 13px) clamp(10px, 1.8vw, 15px);
+    margin-bottom: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    animation: itemIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    position: relative;
+  }
+  @keyframes itemIn {
+    from { opacity: 0; transform: translateX(-25px) scale(0.95); }
+    to { opacity: 1; transform: translateX(0) scale(1); }
+  }
+  @keyframes itemOut {
+    from { opacity: 1; transform: translateX(0) scale(1); max-height: 100px; margin-bottom: 8px; padding: 13px 15px; }
+    to { opacity: 0; transform: translateX(60px) scale(0.9); max-height: 0; margin-bottom: 0; padding: 0 15px; border-width: 0; }
+  }
+  .item.removing {
+    animation: itemOut 0.4s cubic-bezier(0.55, 0, 1, 0.45) forwards;
+    pointer-events: none;
+  }
+  .item:hover {
+    border-color: var(--accent);
+    transform: translateX(5px);
+    box-shadow: 0 5px 20px rgba(88,166,255,0.15);
+  }
+  .item .cat-badge {
+    width: clamp(32px, 5vw, 38px);
+    height: clamp(32px, 5vw, 38px);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: clamp(15px, 2.4vw, 18px);
+    flex-shrink: 0;
+    transition: transform 0.3s;
+  }
+  .item:hover .cat-badge { transform: scale(1.15) rotate(-5deg); }
+  .item-info { flex: 1; min-width: 0; }
+  .item-title {
+    font-weight: 600;
+    font-size: clamp(12px, 1.8vw, 14px);
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .item-meta { font-size: clamp(10px, 1.4vw, 11px); color: var(--text-dim); }
+  .item-amount {
+    font-weight: 700;
+    font-size: clamp(12px, 1.8vw, 14px);
+    margin-right: 8px;
+    white-space: nowrap;
+  }
+  .item-amount.expense { color: var(--red); }
+  .item-amount.income { color: var(--green); }
+  .delete-btn {
+    background: transparent;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    width: 30px; height: 30px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    flex-shrink: 0;
+  }
+  .delete-btn:hover {
+    background: var(--red);
+    color: #fff;
+    border-color: var(--red);
+    transform: rotate(90deg) scale(1.1);
+  }
+
+  .empty {
+    text-align: center;
+    color: var(--text-dim);
+    padding: 40px 20px;
+    font-style: italic;
+    font-size: 14px;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+
+  .clear-all {
+    width: 100%;
+    margin-top: 15px;
+    padding: 11px;
+    background: transparent;
+    color: var(--red);
+    border: 1px solid var(--red);
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: clamp(12px, 1.6vw, 13px);
+    transition: all 0.3s;
+    animation: fadeUp 0.7s 0.85s both;
+  }
+  .clear-all:hover {
+    background: var(--red);
+    color: #fff;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(248,81,73,0.35);
+  }
+  .clear-all:active { transform: translateY(0) scale(0.98); }
+
+  /* ===== Toast bildirishnoma ===== */
+  .toast {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-100px);
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 12px 20px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 600;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    z-index: 999;
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.4s;
+    opacity: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 90vw;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  .toast.success { border-color: var(--green); }
+  .toast.error { border-color: var(--red); }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ===== Raqam sanash animatsiyasi ===== */
+  .count-anim { transition: none; }
+
+  /* ===== MOSLASHUVCHANLIK ===== */
+
+  /* Planshet (≤ 900px) */
+  @media (max-width: 900px) {
+    .form { grid-template-columns: 1fr 1fr; }
+    .form input[type="text"] { grid-column: span 2; }
+    .form button { grid-column: span 2; }
+  }
+
+  /* Planshet kichik / katta telefon (≤ 700px) */
+  @media (max-width: 700px) {
+    .charts { grid-template-columns: 1fr; }
+    .summary { grid-template-columns: 1fr 1fr; }
+    .card.balance { grid-column: span 2; }
+  }
+
+  /* Telefon (≤ 500px) */
+  @media (max-width: 500px) {
+    body { padding: 8px; }
+    .container { border-radius: 16px; padding: 14px; }
+    .summary { grid-template-columns: 1fr; gap: 10px; }
+    .card.balance { grid-column: span 1; }
+    .form { grid-template-columns: 1fr; }
+    .form input[type="text"] { grid-column: span 1; }
+    .form button { grid-column: span 1; }
+    .item { gap: 8px; padding: 10px; }
+    .item-amount { margin-right: 4px; }
+    .delete-btn { width: 28px; height: 28px; font-size: 12px; }
+    .chart-container { height: 220px; }
+  }
+
+  /* Juda kichik telefon (≤ 360px) */
+  @media (max-width: 360px) {
+    .item-title { font-size: 12px; }
+    .item-meta { font-size: 9px; }
+    .item-amount { font-size: 11px; }
+    .delete-btn { width: 26px; height: 26px; }
+  }
+
+  /* Katta ekran (≥ 1400px) */
+  @media (min-width: 1400px) {
+    .container { max-width: 1200px; }
+    .summary { gap: 20px; }
+  }
+
+  /* Gorizontal telefon */
+  @media (max-height: 500px) and (orientation: landscape) {
+    .list { max-height: 200px; }
+    .chart-container { height: 160px; }
+  }
+
+  /* Harakatni kamaytirish (foydalanuvchi xohishiga ko'ra) */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>💰 Xarajatlar Trekeri</h1>
+  <p class="subtitle">Kirim-chiqimni kuzatib boring va diagrammalarda tahlil qiling</p>
+
+  <div class="summary">
+    <div class="card income">
+      <div class="label">📥 Kirim</div>
+      <div class="amount" id="totalIncome">0 so'm</div>
+    </div>
+    <div class="card expense">
+      <div class="label">📤 Chiqim</div>
+      <div class="amount" id="totalExpense">0 so'm</div>
+    </div>
+    <div class="card balance">
+      <div class="label">💎 Balans</div>
+      <div class="amount" id="balance">0 so'm</div>
+    </div>
+  </div>
+
+  <div class="form-section">
+    <div class="form-title">➕ Yangi yozuv qo'shish</div>
+    <div class="form">
+      <input type="text" id="title" placeholder="Nomi (masalan: Tushlik)">
+      <input type="number" id="amount" placeholder="Summa" min="0">
+      <select id="type">
+        <option value="expense">📤 Chiqim</option>
+        <option value="income">📥 Kirim</option>
+      </select>
+      <select id="category">
+        <option value="ovqat">🍔 Ovqat</option>
+        <option value="transport">🚗 Transport</option>
+        <option value="kommunal">💡 Kommunal</option>
+        <option value="kiyim">👕 Kiyim</option>
+        <option value="sogliq">💊 Sog'liq</option>
+        <option value="talim">📚 Ta'lim</option>
+        <option value="kongil">🎮 Ko'ngilochar</option>
+        <option value="boshqa">📦 Boshqa</option>
+      </select>
+      <button onclick="addItem()">Qo'shish</button>
+    </div>
+  </div>
+
+  <div class="charts">
+    <div class="chart-box">
+      <h3>📊 Kategoriyalar bo'yicha chiqim</h3>
+      <div class="chart-container"><canvas id="pieChart"></canvas></div>
+    </div>
+    <div class="chart-box">
+      <h3>📈 Oxirgi 6 oy dinamikasi</h3>
+      <div class="chart-container"><canvas id="barChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="filters">
+    <button class="active" onclick="setFilter('all', this)">Hammasi</button>
+    <button onclick="setFilter('income', this)">Kirim</button>
+    <button onclick="setFilter('expense', this)">Chiqim</button>
+  </div>
+
+  <div class="list" id="list">
+    <div class="empty">Hozircha yozuvlar yo'q. Birinchi xarajatingizni qo'shing!</div>
+  </div>
+
+  <button class="clear-all" onclick="clearAll()">🗑️ Hammasini o'chirish</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const CATEGORIES = {
+  ovqat:    { name: 'Ovqat',       icon: '🍔', color: '#f0883e' },
+  transport:{ name: 'Transport',   icon: '🚗', color: '#58a6ff' },
+  kommunal: { name: 'Kommunal',    icon: '💡', color: '#e3b341' },
+  kiyim:    { name: 'Kiyim',       icon: '👕', color: '#db61a2' },
+  sogliq:   { name: 'Sog\'liq',    icon: '💊', color: '#3fb950' },
+  talim:    { name: 'Ta\'lim',     icon: '📚', color: '#a371f7' },
+  kongil:   { name: 'Ko\'ngilochar', icon: '🎮', color: '#39c5cf' },
+  boshqa:   { name: 'Boshqa',      icon: '📦', color: '#8b949e' }
+};
+
+let items = JSON.parse(localStorage.getItem('xarajatlar_v3')) || [];
+let filter = 'all';
+let pieChart, barChart;
+let prevTotals = { income: 0, expense: 0, balance: 0 };
+
+function save() { localStorage.setItem('xarajatlar_v3', JSON.stringify(items)); }
+
+function formatSum(n) {
+  return Math.round(n).toLocaleString('uz-UZ') + " so'm";
+}
+
+// ===== Toast bildirishnoma =====
+let toastTimer;
+function showToast(msg, type = 'success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + type;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ===== Raqam sanash animatsiyasi =====
+function animateNumber(el, from, to) {
+  const duration = 700;
+  const start = performance.now();
+  function step(now) {
+    const p = Math.min((now - start) / duration, 1);
+    const eased = 1 - Math.pow(1 - p, 3);
+    const val = from + (to - from) * eased;
+    el.textContent = formatSum(val);
+    if (p < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+// ===== Qo'shish =====
+function addItem() {
+  const title = document.getElementById('title').value.trim();
+  const amount = parseFloat(document.getElementById('amount').value);
+  const type = document.getElementById('type').value;
+  const category = document.getElementById('category').value;
+
+  if (!title || !amount || amount <= 0) {
+    showToast('⚠️ Nom va summani to\'g\'ri kiriting!', 'error');
+    return;
+  }
+
+  items.push({
+    id: Date.now(),
+    title, amount, type, category,
+    date: new Date().toISOString()
+  });
+
+  document.getElementById('title').value = '';
+  document.getElementById('amount').value = '';
+  document.getElementById('title').focus();
+
+  save();
+  render();
+  showToast('✅ Muvaffaqiyatli qo\'shildi!');
+}
+
+// ===== O'chirish (animatsiya bilan) =====
+function deleteItem(id, btn) {
+  const itemEl = btn.closest('.item');
+  itemEl.classList.add('removing');
+  setTimeout(() => {
+    items = items.filter(i => i.id !== id);
+    save();
+    render();
+    showToast('🗑️ O\'chirildi', 'error');
+  }, 400);
+}
+
+function clearAll() {
+  if (items.length === 0) return;
+  if (confirm("Barcha yozuvlarni o'chirishni xohlaysizmi?")) {
+    items = [];
+    save();
+    render();
+    showToast('🗑️ Hammasi tozalandi', 'error');
+  }
+}
+
+function setFilter(f, btn) {
+  filter = f;
+  document.querySelectorAll('.filters button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  render();
+}
+
+function formatDate(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    + ' • ' + d.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' });
+}
+
+// ===== Diagrammalar =====
+const CHART_FONT = { family: "'Segoe UI', sans-serif", size: 11 };
+const GRID_COLOR = 'rgba(139, 148, 158, 0.15)';
+const TEXT_COLOR = '#8b949e';
+
+function updateCharts() {
+  const expenses = items.filter(i => i.type === 'expense');
+  const catTotals = {};
+  expenses.forEach(e => catTotals[e.category] = (catTotals[e.category] || 0) + e.amount);
+  const catKeys = Object.keys(catTotals).sort((a,b) => catTotals[b] - catTotals[a]);
+
+  const pieLabels = catKeys.map(k => `${CATEGORIES[k].icon} ${CATEGORIES[k].name}`);
+  const pieData = catKeys.map(k => catTotals[k]);
+  const pieColors = catKeys.map(k => CATEGORIES[k].color);
+
+  if (pieChart) {
+    pieChart.data.labels = pieLabels;
+    pieChart.data.datasets[0].data = pieData;
+    pieChart.data.datasets[0].backgroundColor = pieColors;
+    pieChart.update();
+  } else {
+    const ctx = document.getElementById('pieChart').getContext('2d');
+    pieChart = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: pieLabels,
+        datasets: [{
+          data: pieData,
+          backgroundColor: pieColors,
+          borderColor: '#161b22',
+          borderWidth: 2,
+          hoverOffset: 12
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '60%',
+        animation: { animateRotate: true, animateScale: true, duration: 900, easing: 'easeOutQuart' },
+        plugins: {
+          legend: {
+            position: 'right',
+            labels: {
+              color: TEXT_COLOR, font: CHART_FONT, padding: 10,
+              boxWidth: 12, boxHeight: 12, usePointStyle: true, pointStyle: 'circle'
+            }
+          },
+          tooltip: {
+            callbacks: { label: c => ' ' + formatSum(c.parsed) },
+            backgroundColor: '#0d1117', borderColor: '#30363d', borderWidth: 1,
+            titleColor: '#e6edf3', bodyColor: '#e6edf3', padding: 10, cornerRadius: 8
+          }
+        }
+      }
+    });
+  }
+
+  // Bar chart — oxirgi 6 oy
+  const months = [];
+  const now = new Date();
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push({
+      key: `${d.getFullYear()}-${d.getMonth()}`,
+      label: d.toLocaleDateString('uz-UZ', { month: 'short' }),
+      income: 0, expense: 0
+    });
+  }
+  items.forEach(it => {
+    const d = new Date(it.date);
+    const m = months.find(x => x.key === `${d.getFullYear()}-${d.getMonth()}`);
+    if (m) m[it.type] += it.amount;
+  });
+
+  const barLabels = months.map(m => m.label);
+  const incomeData = months.map(m => m.income);
+  const expenseData = months.map(m => m.expense);
+
+  if (barChart) {
+    barChart.data.labels = barLabels;
+    barChart.data.datasets[0].data = incomeData;
+    barChart.data.datasets[1].data = expenseData;
+    barChart.update();
+  } else {
+    const ctx = document.getElementById('barChart').getContext('2d');
+    barChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: barLabels,
+        datasets: [
+          { label: 'Kirim', data: incomeData, backgroundColor: '#3fb950', borderRadius: 6 },
+          { label: 'Chiqim', data: expenseData, backgroundColor: '#f85149', borderRadius: 6 }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 900, easing: 'easeOutQuart' },
+        plugins: {
+          legend: {
+            labels: { color: TEXT_COLOR, font: CHART_FONT, usePointStyle: true, pointStyle: 'circle', boxWidth: 10 }
+          },
+          tooltip: {
+            callbacks: { label: c => ' ' + c.dataset.label + ': ' + formatSum(c.parsed.y) },
+            backgroundColor: '#0d1117', borderColor: '#30363d', borderWidth: 1,
+            titleColor: '#e6edf3', bodyColor: '#e6edf3', padding: 10, cornerRadius: 8
+          }
+        },
+        scales: {
+          x: { ticks: { color: TEXT_COLOR, font: CHART_FONT }, grid: { display: false } },
+          y: {
+            ticks: {
+              color: TEXT_COLOR, font: CHART_FONT,
+              callback: v => v >= 1000 ? (v/1000).toFixed(0) + 'k' : v
+            },
+            grid: { color: GRID_COLOR }
+          }
+        }
+      }
+    });
+  }
+}
+
+// ===== Render =====
+function render() {
+  const list = document.getElementById('list');
+  const filtered = filter === 'all' ? items : items.filter(i => i.type === filter);
+
+  const income = items.filter(i => i.type === 'income').reduce((s, i) => s + i.amount, 0);
+  const expense = items.filter(i => i.type === 'expense').reduce((s, i) => s + i.amount, 0);
+  const balance = income - expense;
+
+  // Raqamlarni animatsiya bilan yangilash
+  animateNumber(document.getElementById('totalIncome'), prevTotals.income, income);
+  animateNumber(document.getElementById('totalExpense'), prevTotals.expense, expense);
+  animateNumber(document.getElementById('balance'), prevTotals.balance, balance);
+  prevTotals = { income, expense, balance };
+
+  if (filtered.length === 0) {
+    list.innerHTML = '<div class="empty">Yozuvlar topilmadi</div>';
+  } else {
+    const sorted = [...filtered].sort((a, b) => new Date(b.date) - new Date(a.date));
+    list.innerHTML = sorted.map((item, idx) => {
+      const cat = CATEGORIES[item.category] || CATEGORIES.boshqa;
+      const delay = Math.min(idx * 0.04, 0.5);
+      return `
+        <div class="item" style="animation-delay: ${delay}s">
+          <div class="cat-badge" style="background: ${cat.color}22; color: ${cat.color}">${cat.icon}</div>
+          <div class="item-info">
+            <div class="item-title">${item.title}</div>
+            <div class="item-meta">${cat.name} • ${formatDate(item.date)}</div>
+          </div>
+          <div class="item-amount ${item.type}">
+            ${item.type === 'income' ? '+' : '−'} ${formatSum(item.amount)}
+          </div>
+          <button class="delete-btn" onclick="deleteItem(${item.id}, this)" title="O'chirish">✕</button>
+        </div>
+      `;
+    }).join('');
+  }
+
+  updateCharts();
+}
+
+// Enter bilan qo'shish
+document.getElementById('amount').addEventListener('keypress', e => {
+  if (e.key === 'Enter') addItem();
+});
+document.getElementById('title').addEventListener('keypress', e => {
+  if (e.key === 'Enter') addItem();
+});
+
+// Ekran o'lchami o'zgarsa chartlarni qayta moslashtirish
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    if (pieChart) pieChart.resize();
+    if (barChart) barChart.resize();
+  }, 200);
+});
+
+render();
+</script>
+</body>
+</html>
